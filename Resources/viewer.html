@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Markdown Viewer</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5.6.1/github-markdown.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.10.0/build/styles/github.min.css" id="hljs-light">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.10.0/build/styles/github-dark.min.css" id="hljs-dark" disabled>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.10.0/build/highlight.min.js"></script>
+<style>
+    :root { color-scheme: light dark; }
+    html, body { margin: 0; padding: 0; background: transparent; }
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+        padding: 32px 48px 64px;
+        max-width: 900px;
+        margin: 0 auto;
+    }
+    .markdown-body {
+        background: transparent !important;
+        color: inherit;
+        font-size: 15px;
+    }
+    @media (prefers-color-scheme: dark) {
+        body { background: #1e1e1e; color: #e6e6e6; }
+        .markdown-body { color-scheme: dark; }
+    }
+    mark.find-hit {
+        background-color: rgba(255, 220, 0, 0.45);
+        color: inherit;
+        padding: 0;
+        border-radius: 2px;
+    }
+    mark.find-hit.active {
+        background-color: rgba(255, 140, 0, 0.8);
+        color: #1a1a1a;
+    }
+    #content:empty::before {
+        content: "Open a markdown file to begin.";
+        color: #888;
+        font-style: italic;
+    }
+</style>
+</head>
+<body>
+<article id="content" class="markdown-body"></article>
+<script>
+    function applyTheme() {
+        const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        document.getElementById("hljs-light").disabled = dark;
+        document.getElementById("hljs-dark").disabled = !dark;
+    }
+    applyTheme();
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
+
+    marked.setOptions({
+        gfm: true,
+        breaks: false,
+        highlight: function(code, lang) {
+            if (window.hljs && lang && hljs.getLanguage(lang)) {
+                try { return hljs.highlight(code, { language: lang }).value; } catch (_) {}
+            }
+            return window.hljs ? hljs.highlightAuto(code).value : code;
+        }
+    });
+
+    let _suppressScroll = false;
+    window.scrollToFraction = function(fraction) {
+        const max = document.documentElement.scrollHeight - window.innerHeight;
+        if (max <= 0) return;
+        _suppressScroll = true;
+        window.scrollTo(0, max * fraction);
+        requestAnimationFrame(function() { _suppressScroll = false; });
+    };
+    window.addEventListener("scroll", function() {
+        if (_suppressScroll) return;
+        const max = document.documentElement.scrollHeight - window.innerHeight;
+        if (max <= 0) return;
+        const frac = Math.min(1, Math.max(0, window.scrollY / max));
+        if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.scroll) {
+            window.webkit.messageHandlers.scroll.postMessage(frac);
+        }
+    }, { passive: true });
+
+    let _currentQuery = "";
+    let _currentOptions = { caseSensitive: false, wholeWord: false, useRegex: false };
+    let _matches = [];
+    let _activeIndex = -1;
+
+    function _decode(b64) {
+        try { return decodeURIComponent(escape(atob(b64))); } catch (_) { return ""; }
+    }
+
+    function _clearMarks() {
+        document.querySelectorAll("mark.find-hit").forEach(function(el) {
+            const parent = el.parentNode;
+            if (!parent) return;
+            parent.replaceChild(document.createTextNode(el.textContent), el);
+            parent.normalize();
+        });
+        _matches = [];
+        _activeIndex = -1;
+    }
+
+    function _buildRegex() {
+        if (!_currentQuery) return null;
+        let pattern = _currentOptions.useRegex
+            ? _currentQuery
+            : _currentQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        if (_currentOptions.wholeWord) pattern = "(?:\\b)" + pattern + "(?:\\b)";
+        const flags = "g" + (_currentOptions.caseSensitive ? "" : "i");
+        try { return new RegExp(pattern, flags); } catch (_) { return null; }
+    }
+
+    function _applyHighlights() {
+        _clearMarks();
+        if (!_currentQuery) return;
+        const re = _buildRegex();
+        if (!re) return;
+        const root = document.getElementById("content");
+        if (!root) return;
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+            acceptNode: function(node) {
+                const p = node.parentElement;
+                if (!p) return NodeFilter.FILTER_REJECT;
+                if (p.tagName === "SCRIPT" || p.tagName === "STYLE" || p.classList.contains("find-hit")) {
+                    return NodeFilter.FILTER_REJECT;
+                }
+                return NodeFilter.FILTER_ACCEPT;
+            }
+        });
+        const nodes = [];
+        let n;
+        while ((n = walker.nextNode())) nodes.push(n);
+        nodes.forEach(function(textNode) {
+            const text = textNode.nodeValue;
+            re.lastIndex = 0;
+            if (!re.test(text)) return;
+            re.lastIndex = 0;
+            const frag = document.createDocumentFragment();
+            let last = 0;
+            let m;
+            while ((m = re.exec(text)) !== null) {
+                if (m.index > last) {
+                    frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+                }
+                const mark = document.createElement("mark");
+                mark.className = "find-hit";
+                mark.textContent = m[0];
+                frag.appendChild(mark);
+                _matches.push(mark);
+                last = m.index + m[0].length;
+                if (m[0].length === 0) re.lastIndex++;
+            }
+            if (last < text.length) {
+                frag.appendChild(document.createTextNode(text.slice(last)));
+            }
+            if (textNode.parentNode) textNode.parentNode.replaceChild(frag, textNode);
+        });
+    }
+
+    function _applyActive() {
+        _matches.forEach(function(el) { el.classList.remove("active"); });
+        if (_activeIndex < 0 || _activeIndex >= _matches.length) return;
+        const el = _matches[_activeIndex];
+        el.classList.add("active");
+        _suppressScroll = true;
+        el.scrollIntoView({ block: "center", inline: "nearest", behavior: "auto" });
+        requestAnimationFrame(function() { _suppressScroll = false; });
+    }
+
+    window.setFindQuery = function(base64, options) {
+        _currentQuery = _decode(base64);
+        if (options) _currentOptions = options;
+        _applyHighlights();
+    };
+
+    window.setFindIndex = function(index) {
+        _activeIndex = index;
+        _applyActive();
+    };
+
+    window.renderMarkdown = function(base64) {
+        try {
+            const md = _decode(base64);
+            document.getElementById("content").innerHTML = marked.parse(md);
+            document.querySelectorAll("pre code").forEach(function(block) {
+                if (window.hljs) hljs.highlightElement(block);
+            });
+            document.querySelectorAll('a[href^="http"]').forEach(function(a) {
+                a.setAttribute("target", "_blank");
+            });
+            if (_currentQuery) {
+                _applyHighlights();
+                _applyActive();
+            }
+        } catch (err) {
+            document.getElementById("content").textContent = "Render error: " + err.message;
+        }
+    };
+</script>
+</body>
+</html>
