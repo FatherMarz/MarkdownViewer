@@ -41,6 +41,54 @@
         color: #888;
         font-style: italic;
     }
+    .fm-block {
+        margin: 0 0 28px;
+        padding: 0 0 20px;
+        border-bottom: 1px solid rgba(128, 128, 128, 0.25);
+    }
+    .fm-title {
+        margin: 0 0 8px;
+        font-size: 2em;
+        line-height: 1.2;
+        border-bottom: none !important;
+        padding-bottom: 0 !important;
+    }
+    .fm-meta {
+        color: #666;
+        font-size: 0.95em;
+        margin-bottom: 10px;
+    }
+    @media (prefers-color-scheme: dark) {
+        .fm-meta { color: #9a9a9a; }
+    }
+    .fm-tags { margin-bottom: 12px; }
+    .fm-tag {
+        display: inline-block;
+        background: rgba(128, 128, 128, 0.18);
+        padding: 2px 9px;
+        border-radius: 10px;
+        font-size: 0.82em;
+        margin-right: 6px;
+        color: inherit;
+    }
+    .fm-excerpt {
+        font-style: italic;
+        color: #555;
+        margin: 0;
+    }
+    @media (prefers-color-scheme: dark) {
+        .fm-excerpt { color: #bbb; }
+    }
+    .mdx-unhandled {
+        display: inline-block;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.85em;
+        background: rgba(255, 180, 0, 0.18);
+        border: 1px dashed rgba(180, 120, 0, 0.5);
+        color: inherit;
+        padding: 1px 6px;
+        border-radius: 4px;
+    }
 </style>
 </head>
 <body>
@@ -181,10 +229,72 @@
         _applyActive();
     };
 
+    function _escHtml(s) {
+        return String(s).replace(/[&<>"']/g, function(c) {
+            return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+        });
+    }
+
+    function _parseFrontmatter(text) {
+        const result = {};
+        text.split(/\r?\n/).forEach(function(line) {
+            const m = line.match(/^([A-Za-z0-9_-]+)\s*:\s*(.*)$/);
+            if (!m) return;
+            let key = m[1];
+            let value = m[2].trim();
+            if ((value.startsWith('"') && value.endsWith('"')) ||
+                (value.startsWith("'") && value.endsWith("'"))) {
+                value = value.slice(1, -1);
+            }
+            if (value.startsWith("[") && value.endsWith("]")) {
+                value = value.slice(1, -1)
+                    .split(",")
+                    .map(function(s) { return s.trim().replace(/^['"]|['"]$/g, ""); })
+                    .filter(Boolean);
+            }
+            result[key] = value;
+        });
+        return result;
+    }
+
+    function _renderFrontmatter(fm) {
+        if (!fm) return "";
+        const parts = [];
+        if (fm.title) parts.push('<h1 class="fm-title">' + _escHtml(fm.title) + "</h1>");
+        const meta = [];
+        if (fm.author) meta.push(_escHtml(fm.author));
+        if (fm.date) meta.push(_escHtml(fm.date));
+        if (meta.length) parts.push('<div class="fm-meta">' + meta.join(" · ") + "</div>");
+        if (Array.isArray(fm.tags) && fm.tags.length) {
+            const tagHtml = fm.tags.map(function(t) {
+                return '<span class="fm-tag">' + _escHtml(t) + "</span>";
+            }).join("");
+            parts.push('<div class="fm-tags">' + tagHtml + "</div>");
+        }
+        if (fm.excerpt) parts.push('<p class="fm-excerpt">' + _escHtml(fm.excerpt) + "</p>");
+        return parts.length ? '<header class="fm-block">' + parts.join("\n") + "</header>" : "";
+    }
+
+    function _preprocessMdx(md) {
+        let frontmatter = null;
+        const fmMatch = md.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+        if (fmMatch) {
+            frontmatter = _parseFrontmatter(fmMatch[1]);
+            md = md.slice(fmMatch[0].length);
+        }
+        md = md.replace(/^[ \t]*(?:import|export)\s+[^\n]*\n?/gm, "");
+        md = md.replace(/<([A-Z][A-Za-z0-9]*)([^>]*)\/>/g, function(_, name, attrs) {
+            return '<span class="mdx-unhandled">&lt;' + name + (attrs || "") + " /&gt;</span>";
+        });
+        return { frontmatter: frontmatter, body: md };
+    }
+
     window.renderMarkdown = function(base64) {
         try {
-            const md = _decode(base64);
-            document.getElementById("content").innerHTML = marked.parse(md);
+            const raw = _decode(base64);
+            const pre = _preprocessMdx(raw);
+            const header = _renderFrontmatter(pre.frontmatter);
+            document.getElementById("content").innerHTML = header + marked.parse(pre.body);
             document.querySelectorAll("pre code").forEach(function(block) {
                 if (window.hljs) hljs.highlightElement(block);
             });

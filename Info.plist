@@ -45,6 +45,7 @@
             <key>LSItemContentTypes</key>
             <array>
                 <string>net.daringfireball.markdown</string>
+                <string>com.mdxjs.mdx</string>
                 <string>public.plain-text</string>
             </array>
         </dict>
@@ -71,6 +72,27 @@
                 <key>public.mime-type</key>
                 <array>
                     <string>text/markdown</string>
+                </array>
+            </dict>
+        </dict>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>com.mdxjs.mdx</string>
+            <key>UTTypeDescription</key>
+            <string>MDX Document</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.plain-text</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>mdx</string>
+                </array>
+                <key>public.mime-type</key>
+                <array>
+                    <string>text/mdx</string>
                 </array>
             </dict>
         </dict>

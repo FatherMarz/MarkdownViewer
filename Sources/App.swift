@@ -49,6 +49,7 @@ struct MarkdownDocument: FileDocument {
         if let md = UTType(filenameExtension: "md") { types.append(md) }
         if let markdown = UTType("net.daringfireball.markdown") { types.append(markdown) }
         if let mdown = UTType(filenameExtension: "markdown") { types.append(mdown) }
+        if let mdx = UTType(filenameExtension: "mdx") { types.append(mdx) }
         return types
     }
 

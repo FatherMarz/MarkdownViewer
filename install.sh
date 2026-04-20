@@ -28,6 +28,7 @@ let bundleID = "$BUNDLE_ID" as CFString
 let utis = [
     "net.daringfireball.markdown",
     "public.markdown",
+    "com.mdxjs.mdx",
 ]
 
 for uti in utis {
