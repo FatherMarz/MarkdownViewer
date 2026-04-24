@@ -692,7 +692,7 @@ struct MarkdownView: NSViewRepresentable {
         controller.add(context.coordinator, name: "scroll")
         config.userContentController = controller
 
-        let webView = WKWebView(frame: .zero, configuration: config)
+        let webView = ZoomableWebView(frame: .zero, configuration: config)
         webView.setValue(false, forKey: "drawsBackground")
         webView.navigationDelegate = context.coordinator
         webView.allowsMagnification = true
@@ -770,6 +770,9 @@ struct MarkdownView: NSViewRepresentable {
             webView.evaluateJavaScript("window.scrollToFraction(\(fraction))", completionHandler: nil)
         }
 
+        static let zoomMin: CGFloat = 0.5
+        static let zoomMax: CGFloat = 3.0
+
         func registerZoomObservers() {
             let nc = NotificationCenter.default
             nc.addObserver(self, selector: #selector(zoomIn), name: .zoomIn, object: nil)
@@ -784,8 +787,9 @@ struct MarkdownView: NSViewRepresentable {
 
         private func setMagnification(_ value: CGFloat) {
             guard let webView else { return }
-            let clamped = max(0.5, min(3.0, value))
-            webView.magnification = clamped
+            let clamped = max(Coordinator.zoomMin, min(Coordinator.zoomMax, value))
+            let center = NSPoint(x: webView.bounds.midX, y: webView.bounds.midY)
+            webView.setMagnification(clamped, centeredAt: center)
         }
 
         @objc func zoomIn() {
@@ -802,5 +806,27 @@ struct MarkdownView: NSViewRepresentable {
             guard isFrontmost() else { return }
             setMagnification(1.0)
         }
+    }
+}
+
+final class ZoomableWebView: WKWebView {
+    override func scrollWheel(with event: NSEvent) {
+        if event.modifierFlags.contains(.command) {
+            let delta = event.scrollingDeltaY
+            if delta == 0 {
+                return
+            }
+            let factor: CGFloat = event.hasPreciseScrollingDeltas ? 0.005 : 0.08
+            let next = magnification * (1.0 + delta * factor)
+            let clamped = max(MarkdownView.Coordinator.zoomMin,
+                              min(MarkdownView.Coordinator.zoomMax, next))
+            if clamped == magnification {
+                return
+            }
+            let point = convert(event.locationInWindow, from: nil)
+            setMagnification(clamped, centeredAt: point)
+            return
+        }
+        super.scrollWheel(with: event)
     }
 }
