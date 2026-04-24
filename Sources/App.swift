@@ -788,8 +788,7 @@ struct MarkdownView: NSViewRepresentable {
         private func setMagnification(_ value: CGFloat) {
             guard let webView else { return }
             let clamped = max(Coordinator.zoomMin, min(Coordinator.zoomMax, value))
-            let center = NSPoint(x: webView.bounds.midX, y: webView.bounds.midY)
-            webView.setMagnification(clamped, centeredAt: center)
+            webView.magnification = clamped
         }
 
         @objc func zoomIn() {
@@ -823,8 +822,7 @@ final class ZoomableWebView: WKWebView {
             if clamped == magnification {
                 return
             }
-            let center = NSPoint(x: bounds.midX, y: bounds.midY)
-            setMagnification(clamped, centeredAt: center)
+            magnification = clamped
             return
         }
         super.scrollWheel(with: event)
