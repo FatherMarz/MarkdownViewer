@@ -258,6 +258,18 @@
         }
     });
 
+    let _currentZoom = 1.0;
+    window.setZoom = function(factor) {
+        const f = Math.max(0.5, Math.min(3.0, Number(factor) || 1.0));
+        if (Math.abs(f - _currentZoom) < 0.0001) return;
+        const ratio = f / _currentZoom;
+        const prevY = window.scrollY;
+        const prevX = window.scrollX;
+        document.documentElement.style.zoom = f;
+        _currentZoom = f;
+        window.scrollTo(prevX * ratio, prevY * ratio);
+    };
+
     let _suppressScroll = false;
     window.scrollToFraction = function(fraction) {
         const max = document.documentElement.scrollHeight - window.innerHeight;

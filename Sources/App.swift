@@ -785,29 +785,34 @@ struct MarkdownView: NSViewRepresentable {
             return win.isKeyWindow || win.isMainWindow
         }
 
-        private func setPageZoom(_ value: CGFloat) {
-            guard let webView else { return }
-            webView.pageZoom = max(Coordinator.zoomMin, min(Coordinator.zoomMax, value))
+        private func applyZoom(_ value: CGFloat) {
+            guard let webView = webView as? ZoomableWebView else { return }
+            let clamped = max(Coordinator.zoomMin, min(Coordinator.zoomMax, value))
+            if abs(clamped - webView.currentZoom) < 0.0001 { return }
+            webView.currentZoom = clamped
+            webView.evaluateJavaScript("window.setZoom(\(clamped))", completionHandler: nil)
         }
 
         @objc func zoomIn() {
-            guard isFrontmost(), let webView else { return }
-            setPageZoom(webView.pageZoom + 0.1)
+            guard isFrontmost(), let webView = webView as? ZoomableWebView else { return }
+            applyZoom(webView.currentZoom + 0.1)
         }
 
         @objc func zoomOut() {
-            guard isFrontmost(), let webView else { return }
-            setPageZoom(webView.pageZoom - 0.1)
+            guard isFrontmost(), let webView = webView as? ZoomableWebView else { return }
+            applyZoom(webView.currentZoom - 0.1)
         }
 
         @objc func zoomReset() {
             guard isFrontmost() else { return }
-            setPageZoom(1.0)
+            applyZoom(1.0)
         }
     }
 }
 
 final class ZoomableWebView: WKWebView {
+    var currentZoom: CGFloat = 1.0
+
     override func scrollWheel(with event: NSEvent) {
         if event.modifierFlags.contains(.command) {
             let delta = event.scrollingDeltaY
@@ -815,13 +820,14 @@ final class ZoomableWebView: WKWebView {
                 return
             }
             let factor: CGFloat = event.hasPreciseScrollingDeltas ? 0.005 : 0.08
-            let next = pageZoom * (1.0 + delta * factor)
+            let next = currentZoom * (1.0 + delta * factor)
             let clamped = max(MarkdownView.Coordinator.zoomMin,
                               min(MarkdownView.Coordinator.zoomMax, next))
-            if clamped == pageZoom {
+            if abs(clamped - currentZoom) < 0.0001 {
                 return
             }
-            pageZoom = clamped
+            currentZoom = clamped
+            evaluateJavaScript("window.setZoom(\(clamped))", completionHandler: nil)
             return
         }
         super.scrollWheel(with: event)
