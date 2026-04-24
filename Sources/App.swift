@@ -9,6 +9,9 @@ extension Notification.Name {
     static let findShowReplace = Notification.Name("MarkdownViewer.findShowReplace")
     static let findNext = Notification.Name("MarkdownViewer.findNext")
     static let findPrev = Notification.Name("MarkdownViewer.findPrev")
+    static let zoomIn = Notification.Name("MarkdownViewer.zoomIn")
+    static let zoomOut = Notification.Name("MarkdownViewer.zoomOut")
+    static let zoomReset = Notification.Name("MarkdownViewer.zoomReset")
 }
 
 @main
@@ -37,6 +40,22 @@ struct MarkdownViewerApp: App {
                         NotificationCenter.default.post(name: .findPrev, object: nil)
                     }
                     .keyboardShortcut("g", modifiers: [.command, .shift])
+                }
+            }
+            CommandGroup(before: .windowArrangement) {
+                Section {
+                    Button("Zoom In") {
+                        NotificationCenter.default.post(name: .zoomIn, object: nil)
+                    }
+                    .keyboardShortcut("=")
+                    Button("Zoom Out") {
+                        NotificationCenter.default.post(name: .zoomOut, object: nil)
+                    }
+                    .keyboardShortcut("-")
+                    Button("Actual Size") {
+                        NotificationCenter.default.post(name: .zoomReset, object: nil)
+                    }
+                    .keyboardShortcut("0")
                 }
             }
         }
@@ -676,7 +695,9 @@ struct MarkdownView: NSViewRepresentable {
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.setValue(false, forKey: "drawsBackground")
         webView.navigationDelegate = context.coordinator
+        webView.allowsMagnification = true
         context.coordinator.webView = webView
+        context.coordinator.registerZoomObservers()
 
         sync?.scrollPreviewTo = { [weak coordinator = context.coordinator] fraction in
             coordinator?.scroll(to: fraction)
@@ -747,6 +768,39 @@ struct MarkdownView: NSViewRepresentable {
         func scroll(to fraction: Double) {
             guard ready, let webView else { return }
             webView.evaluateJavaScript("window.scrollToFraction(\(fraction))", completionHandler: nil)
+        }
+
+        func registerZoomObservers() {
+            let nc = NotificationCenter.default
+            nc.addObserver(self, selector: #selector(zoomIn), name: .zoomIn, object: nil)
+            nc.addObserver(self, selector: #selector(zoomOut), name: .zoomOut, object: nil)
+            nc.addObserver(self, selector: #selector(zoomReset), name: .zoomReset, object: nil)
+        }
+
+        private func isFrontmost() -> Bool {
+            guard let webView, let win = webView.window else { return false }
+            return win.isKeyWindow || win.isMainWindow
+        }
+
+        private func setMagnification(_ value: CGFloat) {
+            guard let webView else { return }
+            let clamped = max(0.5, min(3.0, value))
+            webView.magnification = clamped
+        }
+
+        @objc func zoomIn() {
+            guard isFrontmost(), let webView else { return }
+            setMagnification(webView.magnification + 0.1)
+        }
+
+        @objc func zoomOut() {
+            guard isFrontmost(), let webView else { return }
+            setMagnification(webView.magnification - 0.1)
+        }
+
+        @objc func zoomReset() {
+            guard isFrontmost() else { return }
+            setMagnification(1.0)
         }
     }
 }

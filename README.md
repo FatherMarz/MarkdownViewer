@@ -46,6 +46,8 @@ This copies the app to `/Applications`, registers it with Launch Services, and s
 | ⌘S | Save |
 | ⌘N | New document |
 | ⌘O | Open |
+| ⌘= / ⌘- | Zoom in / out (also: pinch on trackpad) |
+| ⌘0 | Actual size |
 
 ## Project Layout
 
