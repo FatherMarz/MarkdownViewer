@@ -823,8 +823,8 @@ final class ZoomableWebView: WKWebView {
             if clamped == magnification {
                 return
             }
-            let point = convert(event.locationInWindow, from: nil)
-            setMagnification(clamped, centeredAt: point)
+            let center = NSPoint(x: bounds.midX, y: bounds.midY)
+            setMagnification(clamped, centeredAt: center)
             return
         }
         super.scrollWheel(with: event)
