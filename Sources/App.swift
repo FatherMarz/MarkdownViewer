@@ -785,25 +785,24 @@ struct MarkdownView: NSViewRepresentable {
             return win.isKeyWindow || win.isMainWindow
         }
 
-        private func setMagnification(_ value: CGFloat) {
+        private func setPageZoom(_ value: CGFloat) {
             guard let webView else { return }
-            let clamped = max(Coordinator.zoomMin, min(Coordinator.zoomMax, value))
-            webView.magnification = clamped
+            webView.pageZoom = max(Coordinator.zoomMin, min(Coordinator.zoomMax, value))
         }
 
         @objc func zoomIn() {
             guard isFrontmost(), let webView else { return }
-            setMagnification(webView.magnification + 0.1)
+            setPageZoom(webView.pageZoom + 0.1)
         }
 
         @objc func zoomOut() {
             guard isFrontmost(), let webView else { return }
-            setMagnification(webView.magnification - 0.1)
+            setPageZoom(webView.pageZoom - 0.1)
         }
 
         @objc func zoomReset() {
             guard isFrontmost() else { return }
-            setMagnification(1.0)
+            setPageZoom(1.0)
         }
     }
 }
@@ -816,13 +815,13 @@ final class ZoomableWebView: WKWebView {
                 return
             }
             let factor: CGFloat = event.hasPreciseScrollingDeltas ? 0.005 : 0.08
-            let next = magnification * (1.0 + delta * factor)
+            let next = pageZoom * (1.0 + delta * factor)
             let clamped = max(MarkdownView.Coordinator.zoomMin,
                               min(MarkdownView.Coordinator.zoomMax, next))
-            if clamped == magnification {
+            if clamped == pageZoom {
                 return
             }
-            magnification = clamped
+            pageZoom = clamped
             return
         }
         super.scrollWheel(with: event)
