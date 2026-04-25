@@ -734,6 +734,9 @@ struct MarkdownView: NSViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             ready = true
+            renderedMarkdown = nil
+            renderedQuery = nil
+            renderedIndex = -1
             applyPending()
         }
 
