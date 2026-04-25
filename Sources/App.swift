@@ -12,6 +12,7 @@ extension Notification.Name {
     static let zoomIn = Notification.Name("MarkdownViewer.zoomIn")
     static let zoomOut = Notification.Name("MarkdownViewer.zoomOut")
     static let zoomReset = Notification.Name("MarkdownViewer.zoomReset")
+    static let copyRichText = Notification.Name("MarkdownViewer.copyRichText")
 }
 
 @main
@@ -40,6 +41,14 @@ struct MarkdownViewerApp: App {
                         NotificationCenter.default.post(name: .findPrev, object: nil)
                     }
                     .keyboardShortcut("g", modifiers: [.command, .shift])
+                }
+            }
+            CommandGroup(after: .pasteboard) {
+                Section {
+                    Button("Copy as Rich Text") {
+                        NotificationCenter.default.post(name: .copyRichText, object: nil)
+                    }
+                    .keyboardShortcut("c", modifiers: [.command, .shift])
                 }
             }
             CommandGroup(before: .windowArrangement) {
@@ -248,6 +257,15 @@ struct ContentView: View {
                     }
                 }
                 .pickerStyle(.segmented)
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: {
+                    NotificationCenter.default.post(name: .copyRichText, object: nil)
+                }) {
+                    Label("Copy as Rich Text", systemImage: "doc.on.clipboard")
+                }
+                .help("Copy preview as rich text (⇧⌘C) — paste into Substack, Gmail, Notion, etc.")
+                .disabled(mode == .edit)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .findShow)) { _ in
@@ -781,6 +799,7 @@ struct MarkdownView: NSViewRepresentable {
             nc.addObserver(self, selector: #selector(zoomIn), name: .zoomIn, object: nil)
             nc.addObserver(self, selector: #selector(zoomOut), name: .zoomOut, object: nil)
             nc.addObserver(self, selector: #selector(zoomReset), name: .zoomReset, object: nil)
+            nc.addObserver(self, selector: #selector(copyRichText), name: .copyRichText, object: nil)
         }
 
         private func isFrontmost() -> Bool {
@@ -809,6 +828,21 @@ struct MarkdownView: NSViewRepresentable {
         @objc func zoomReset() {
             guard isFrontmost() else { return }
             applyZoom(1.0)
+        }
+
+        @objc func copyRichText() {
+            guard isFrontmost(), ready, let webView else { return }
+            webView.evaluateJavaScript("window.getRichContent()") { result, _ in
+                guard let dict = result as? [String: Any] else { return }
+                let html = dict["html"] as? String ?? ""
+                let text = dict["text"] as? String ?? ""
+                guard !html.isEmpty || !text.isEmpty else { return }
+                let pb = NSPasteboard.general
+                pb.clearContents()
+                pb.declareTypes([.html, .string], owner: nil)
+                pb.setString(html, forType: .html)
+                pb.setString(text, forType: .string)
+            }
         }
     }
 }
