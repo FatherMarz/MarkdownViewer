@@ -289,14 +289,22 @@ struct ContentView: View {
         case .edit:
             MarkdownEditor(text: $document.text, sync: nil, findState: findState)
         case .preview:
-            MarkdownView(text: document.text, sync: nil, findState: findState)
+            MarkdownView(text: document.text, sync: nil, findState: findState,
+                         onReloadFromDisk: applyDiskText)
         case .split:
             HSplitView {
                 MarkdownEditor(text: $document.text, sync: sync, findState: findState)
                     .frame(minWidth: 240)
-                MarkdownView(text: document.text, sync: sync, findState: findState)
+                MarkdownView(text: document.text, sync: sync, findState: findState,
+                             onReloadFromDisk: applyDiskText)
                     .frame(minWidth: 240)
             }
+        }
+    }
+
+    private func applyDiskText(_ newText: String) {
+        if document.text != newText {
+            document.text = newText
         }
     }
 }
@@ -701,6 +709,7 @@ struct MarkdownView: NSViewRepresentable {
     let text: String
     let sync: ScrollSync?
     @ObservedObject var findState: FindState
+    var onReloadFromDisk: ((String) -> Void)? = nil
 
     func makeCoordinator() -> Coordinator { Coordinator(sync: sync) }
 
@@ -732,6 +741,7 @@ struct MarkdownView: NSViewRepresentable {
         context.coordinator.pendingQuery = findState.isActive ? findState.query : ""
         context.coordinator.pendingOptions = findState.options
         context.coordinator.pendingIndex = findState.currentMatch - 1
+        context.coordinator.onReloadFromDisk = onReloadFromDisk
         context.coordinator.applyPending()
     }
 
@@ -747,6 +757,7 @@ struct MarkdownView: NSViewRepresentable {
         var renderedIndex: Int = -1
         var ready = false
         let sync: ScrollSync?
+        var onReloadFromDisk: ((String) -> Void)?
 
         init(sync: ScrollSync?) { self.sync = sync }
 
@@ -756,6 +767,45 @@ struct MarkdownView: NSViewRepresentable {
             renderedQuery = nil
             renderedIndex = -1
             applyPending()
+        }
+
+        func webView(_ webView: WKWebView,
+                     decidePolicyFor navigationAction: WKNavigationAction,
+                     decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            if navigationAction.navigationType == .reload {
+                if let fileURL = webView.window?.representedURL,
+                   let data = try? Data(contentsOf: fileURL),
+                   let text = String(data: data, encoding: .utf8) {
+                    onReloadFromDisk?(text)
+                }
+                decisionHandler(.cancel)
+                return
+            }
+
+            guard let url = navigationAction.request.url else {
+                decisionHandler(.allow)
+                return
+            }
+            if navigationAction.navigationType == .linkActivated {
+                if url.absoluteString.hasPrefix("#") {
+                    decisionHandler(.allow)
+                    return
+                }
+                if let scheme = url.scheme?.lowercased(),
+                   scheme == "http" || scheme == "https" || scheme == "mailto" {
+                    NSWorkspace.shared.open(url)
+                    decisionHandler(.cancel)
+                    return
+                }
+                if url.scheme == nil {
+                    decisionHandler(.allow)
+                    return
+                }
+                NSWorkspace.shared.open(url)
+                decisionHandler(.cancel)
+                return
+            }
+            decisionHandler(.allow)
         }
 
         func applyPending() {

@@ -596,9 +596,6 @@
                 if (block.parentElement && block.parentElement.classList.contains("mermaid")) return;
                 if (window.hljs) hljs.highlightElement(block);
             });
-            root.querySelectorAll('a[href^="http"]').forEach(function(a) {
-                a.setAttribute("target", "_blank");
-            });
             _renderAlerts(root);
             _addCopyButtons(root);
             _addHeadingAnchors(root);
